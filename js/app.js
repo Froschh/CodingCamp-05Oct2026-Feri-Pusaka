@@ -1,854 +1,738 @@
-/* ============================================================
+/* ==========================================================
    To-Do List Dashboard — app.js
-   THE ONLY JS FILE in this project.
-   Vanilla JavaScript only — no frameworks, no external libraries.
-   All persistence via localStorage.
-   ============================================================ */
+   Single JS file (Folder Rule: only 1 JS file in js/)
+   Vanilla JavaScript — no frameworks, no libraries
+   All data persisted via Browser LocalStorage API
+   ========================================================== */
 
+'use strict';
 
-/* ── CONSTANTS / CONFIG ──────────────────────────────────────────────────── */
+/* ----------------------------------------------------------
+   LOCALSTORAGE KEYS
+   ---------------------------------------------------------- */
+const LS_NAME      = 'dashboard_name';
+const LS_THEME     = 'dashboard_theme';
+const LS_TASKS     = 'dashboard_tasks';
+const LS_LINKS     = 'dashboard_links';
+const LS_POMODORO  = 'dashboard_pomodoro_minutes';
 
-// LocalStorage keys
-const TODO_KEY  = 'todo-dashboard-tasks';
-const LINKS_KEY = 'todo-dashboard-links';
-const USER_KEY  = 'todo-dashboard-user';
-const THEME_KEY = 'todo-dashboard-theme';
-
-// Default Pomodoro duration
-const DEFAULT_POMODORO_MINUTES = 25;
-
-// Default quick links seeded on first load
-const DEFAULT_LINKS = [
-  { id: 1, name: 'Google',       url: 'https://www.google.com' },
-  { id: 2, name: 'GitHub',       url: 'https://github.com' },
-  { id: 3, name: 'YouTube',      url: 'https://www.youtube.com' },
-  { id: 4, name: 'Gmail',        url: 'https://mail.google.com' },
-  { id: 5, name: 'Stack Overflow', url: 'https://stackoverflow.com' },
-];
-
-
-/* ── STORAGE HELPERS ─────────────────────────────────────────────────────── */
+/* ----------------------------------------------------------
+   HELPERS
+   ---------------------------------------------------------- */
 
 /**
- * Reads a value from localStorage and JSON-parses it.
+ * Read and parse a JSON value from LocalStorage.
  * Returns `fallback` if the key is missing or JSON is invalid.
  */
-function loadFromLS(key, fallback) {
+function lsGet(key, fallback) {
   try {
     const raw = localStorage.getItem(key);
-    if (raw === null) return fallback;
-    return JSON.parse(raw);
-  } catch (e) {
+    return raw === null ? fallback : JSON.parse(raw);
+  } catch (_) {
     return fallback;
   }
 }
 
-/**
- * JSON-stringifies `value` and writes it to localStorage.
- */
-function saveToLS(key, value) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (e) {
-    console.warn('localStorage write failed:', e);
-  }
+/** Stringify and write a value to LocalStorage. */
+function lsSet(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
 }
 
-/**
- * Reads a plain string from localStorage (no JSON parsing).
- * Returns `fallback` if absent.
- */
-function loadStringFromLS(key, fallback) {
-  return localStorage.getItem(key) || fallback;
+/** Generate a short unique ID. */
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
-/**
- * Writes a plain string value to localStorage.
- */
-function saveStringToLS(key, value) {
-  try {
-    localStorage.setItem(key, value);
-  } catch (e) {
-    console.warn('localStorage write failed:', e);
-  }
-}
+/* ----------------------------------------------------------
+   1. GREETING SECTION
+   ---------------------------------------------------------- */
 
+const clockEl         = document.getElementById('clock');
+const dateEl          = document.getElementById('dateDisplay');
+const greetingMsgEl   = document.getElementById('greetingMessage');
+const greetingNameEl  = document.getElementById('greetingName');
+const nameEditWrapper = document.getElementById('nameEditWrapper');
+const nameInputEl     = document.getElementById('nameInput');
+const saveNameBtn     = document.getElementById('saveNameBtn');
 
-/* ── TOAST UTILITY ───────────────────────────────────────────────────────── */
+const DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MONTHS = ['January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
 
-let toastTimeout = null;
-
-/**
- * Briefly shows a toast notification at the bottom of the screen.
- * @param {string} message
- * @param {number} duration  — milliseconds to show (default 2500)
- */
-function showToast(message, duration = 2500) {
-  let toast = document.getElementById('toast');
-  if (!toast) {
-    toast = document.createElement('div');
-    toast.id = 'toast';
-    toast.className = 'toast';
-    document.body.appendChild(toast);
-  }
-  toast.textContent = message;
-  toast.classList.add('show');
-  clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(() => {
-    toast.classList.remove('show');
-  }, duration);
-}
-
-
-/* ── GREETING & CLOCK ────────────────────────────────────────────────────── */
-
-/**
- * Returns a greeting string based on the hour (0–23).
- */
-function getGreetingByHour(hour) {
+/** Return the time-of-day greeting string based on the current hour. */
+function getGreetingPhrase(hour) {
   if (hour >= 5  && hour < 12) return 'Good Morning';
-  if (hour >= 12 && hour < 17) return 'Good Afternoon';
-  if (hour >= 17 && hour < 21) return 'Good Evening';
+  if (hour >= 12 && hour < 18) return 'Good Afternoon';
+  if (hour >= 18 && hour < 21) return 'Good Evening';
   return 'Good Night';
 }
 
-/**
- * Formats a Date object to a long date string.
- * e.g. "Friday, 5 October 2026"
- */
-function formatDate(date) {
-  return date.toLocaleDateString('en-GB', {
-    weekday: 'long',
-    day:     'numeric',
-    month:   'long',
-    year:    'numeric',
-  });
+/** Pad a number to 2 digits. */
+function pad(n) {
+  return String(n).padStart(2, '0');
 }
 
-/**
- * Formats a Date object to a HH:MM:SS time string.
- */
-function formatTime(date) {
-  const h = String(date.getHours()).padStart(2, '0');
-  const m = String(date.getMinutes()).padStart(2, '0');
-  const s = String(date.getSeconds()).padStart(2, '0');
-  return `${h}:${m}:${s}`;
-}
-
-/**
- * Updates the greeting text, clock, and date in the header.
- * Called every second by setInterval.
- */
+/** Update the clock, date, and greeting text every second. */
 function updateClock() {
-  const now     = new Date();
-  const hour    = now.getHours();
-  const greeting = getGreetingByHour(hour);
-  const name    = loadStringFromLS(USER_KEY, 'Friend');
+  const now  = new Date();
+  const h    = now.getHours();
+  const m    = now.getMinutes();
+  const s    = now.getSeconds();
 
-  const greetingEl = document.getElementById('greeting-text');
-  const timeEl     = document.getElementById('current-time');
-  const dateEl     = document.getElementById('current-date');
-
-  if (greetingEl) greetingEl.textContent = `${greeting}, ${name}!`;
-  if (timeEl)     timeEl.textContent     = formatTime(now);
-  if (dateEl)     dateEl.textContent     = formatDate(now);
+  clockEl.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+  dateEl.textContent  = `${DAYS[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+  greetingMsgEl.textContent = `${getGreetingPhrase(h)},`;
 }
 
-/**
- * Saves the name from the input field to LocalStorage and refreshes the greeting.
- */
+/** Render the user's name in the greeting. */
+function renderName() {
+  const name = lsGet(LS_NAME, 'Friend');
+  greetingNameEl.textContent = name;
+}
+
+/** Show the inline name-edit input. */
+function showNameEdit() {
+  const current = lsGet(LS_NAME, 'Friend');
+  nameInputEl.value = current;
+  greetingNameEl.classList.add('hidden');
+  nameEditWrapper.classList.remove('hidden');
+  nameInputEl.focus();
+  nameInputEl.select();
+}
+
+/** Save the new name and hide the edit input. */
 function saveName() {
-  const input = document.getElementById('username-input');
-  if (!input) return;
-  const name = input.value.trim();
-  if (!name) {
-    showToast('Please enter a name.');
+  const trimmed = nameInputEl.value.trim();
+  const name = trimmed.length > 0 ? trimmed : 'Friend';
+  lsSet(LS_NAME, name);
+  greetingNameEl.textContent = name;
+  greetingNameEl.classList.remove('hidden');
+  nameEditWrapper.classList.add('hidden');
+}
+
+// Click/keyboard on the displayed name → open edit
+greetingNameEl.addEventListener('click', showNameEdit);
+greetingNameEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    showNameEdit();
+  }
+});
+
+saveNameBtn.addEventListener('click', saveName);
+
+nameInputEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') saveName();
+  if (e.key === 'Escape') {
+    greetingNameEl.classList.remove('hidden');
+    nameEditWrapper.classList.add('hidden');
+  }
+});
+
+// Initialise greeting
+renderName();
+updateClock();
+setInterval(updateClock, 1000);
+
+/* ----------------------------------------------------------
+   2. THEME (LIGHT / DARK MODE)
+   ---------------------------------------------------------- */
+
+const themeToggleBtn = document.getElementById('themeToggle');
+const themeIconEl    = document.getElementById('themeIcon');
+
+/** Apply the given theme ('light' or 'dark') to <body>. */
+function applyTheme(theme) {
+  if (theme === 'dark') {
+    document.body.classList.add('dark');
+    document.body.classList.remove('light');
+    themeIconEl.textContent = '☀️';
+    themeToggleBtn.setAttribute('aria-label', 'Switch to light mode');
+  } else {
+    document.body.classList.add('light');
+    document.body.classList.remove('dark');
+    themeIconEl.textContent = '🌙';
+    themeToggleBtn.setAttribute('aria-label', 'Switch to dark mode');
+  }
+  lsSet(LS_THEME, theme);
+}
+
+themeToggleBtn.addEventListener('click', () => {
+  const current = document.body.classList.contains('dark') ? 'dark' : 'light';
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+});
+
+// Initialise theme from LocalStorage (default: light)
+applyTheme(lsGet(LS_THEME, 'light'));
+
+/* ----------------------------------------------------------
+   3. FOCUS TIMER (POMODORO)
+   ---------------------------------------------------------- */
+
+const timerDisplayEl  = document.getElementById('timerDisplay');
+const timerStartBtn   = document.getElementById('timerStartBtn');
+const timerStopBtn    = document.getElementById('timerStopBtn');
+const timerResetBtn   = document.getElementById('timerResetBtn');
+const pomodoroInput   = document.getElementById('pomodoroMinutes');
+const applyTimerBtn   = document.getElementById('applyTimerBtn');
+
+// Timer state (in-memory only — does not persist across refreshes)
+let timerDurationSecs = lsGet(LS_POMODORO, 25) * 60;
+let timerRemaining    = timerDurationSecs;
+let timerInterval     = null;
+let timerRunning      = false;
+
+// Initialise the minutes input from stored preference
+pomodoroInput.value = lsGet(LS_POMODORO, 25);
+
+/** Format seconds as MM:SS. */
+function formatTime(totalSeconds) {
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  return `${pad(mins)}:${pad(secs)}`;
+}
+
+/** Refresh the timer display element. */
+function renderTimer() {
+  timerDisplayEl.textContent = formatTime(timerRemaining);
+}
+
+/** Tick the timer down by one second. */
+function timerTick() {
+  if (timerRemaining <= 0) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+    timerRunning  = false;
+    timerDisplayEl.classList.remove('running');
+    timerDisplayEl.classList.add('finished');
+    timerRemaining = 0;
+    renderTimer();
+    notifyTimerDone();
     return;
   }
-  saveStringToLS(USER_KEY, name);
-  updateClock();
-  showToast(`Hello, ${name}! 👋`);
-}
-
-/**
- * Seeds the name input from LocalStorage, then starts the clock interval.
- */
-function initGreeting() {
-  const input = document.getElementById('username-input');
-  if (input) {
-    input.value = loadStringFromLS(USER_KEY, '');
-  }
-  updateClock();
-  setInterval(updateClock, 1000);
-}
-
-
-/* ── THEME ───────────────────────────────────────────────────────────────── */
-
-/**
- * Applies 'light' or 'dark' theme by toggling the body class and updating the toggle icon.
- * @param {'light'|'dark'} theme
- */
-function applyTheme(theme) {
-  const btn = document.getElementById('theme-toggle-btn');
-  if (theme === 'dark') {
-    document.body.classList.add('dark-mode');
-    document.body.classList.remove('light-mode');
-    if (btn) btn.textContent = '☀️';
-    if (btn) btn.setAttribute('title', 'Switch to light mode');
-  } else {
-    document.body.classList.add('light-mode');
-    document.body.classList.remove('dark-mode');
-    if (btn) btn.textContent = '🌙';
-    if (btn) btn.setAttribute('title', 'Switch to dark mode');
-  }
-}
-
-/**
- * Flips the current theme, saves it to LocalStorage, and applies it.
- */
-function toggleTheme() {
-  const current = loadStringFromLS(THEME_KEY, 'light');
-  const next    = current === 'dark' ? 'light' : 'dark';
-  saveStringToLS(THEME_KEY, next);
-  applyTheme(next);
-}
-
-/**
- * Loads saved theme from LocalStorage (defaults to 'light') and applies it.
- * Should be called before anything else renders, to prevent a flash.
- */
-function initTheme() {
-  const theme = loadStringFromLS(THEME_KEY, 'light');
-  applyTheme(theme);
-}
-
-
-/* ── FOCUS TIMER ─────────────────────────────────────────────────────────── */
-
-// Module-level timer state
-let timerInterval   = null;        // setInterval handle
-let timerDuration   = DEFAULT_POMODORO_MINUTES * 60;   // total seconds
-let timerRemaining  = timerDuration;                   // seconds left
-let timerRunning    = false;
-
-/**
- * Formats seconds into a "MM:SS" string.
- * @param {number} totalSeconds
- * @returns {string}
- */
-function formatTimerTime(totalSeconds) {
-  const m = Math.floor(totalSeconds / 60);
-  const s = totalSeconds % 60;
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
-
-/**
- * Writes the current timerRemaining value to #timer-display.
- */
-function renderTimerDisplay() {
-  const display = document.getElementById('timer-display');
-  if (display) display.textContent = formatTimerTime(timerRemaining);
-}
-
-/**
- * Called every second by setInterval while the timer is running.
- * Decrements timerRemaining; calls timerFinished when it hits zero.
- */
-function tickTimer() {
   timerRemaining -= 1;
-  renderTimerDisplay();
-  if (timerRemaining <= 0) {
-    timerFinished();
+  renderTimer();
+}
+
+/** Show a browser Notification or fall back to alert. */
+function notifyTimerDone() {
+  const msg = "⏰ Time's up! Take a break.";
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification('Focus Timer', { body: msg, icon: '' });
+  } else if ('Notification' in window && Notification.permission !== 'denied') {
+    Notification.requestPermission().then((permission) => {
+      if (permission === 'granted') {
+        new Notification('Focus Timer', { body: msg });
+      } else {
+        alert(msg);
+      }
+    });
+  } else {
+    alert(msg);
   }
 }
 
-/**
- * Starts the countdown. Guards against double-starting.
- */
-function startTimer() {
+timerStartBtn.addEventListener('click', () => {
   if (timerRunning) return;
-  if (timerRemaining <= 0) resetTimer();
+  if (timerRemaining <= 0) {
+    // If already finished, reset first
+    timerRemaining = timerDurationSecs;
+    timerDisplayEl.classList.remove('finished');
+  }
   timerRunning = true;
-  const display = document.getElementById('timer-display');
-  if (display) display.classList.add('running');
-  timerInterval = setInterval(tickTimer, 1000);
-}
+  timerDisplayEl.classList.add('running');
+  timerDisplayEl.classList.remove('finished');
+  timerInterval = setInterval(timerTick, 1000);
+});
 
-/**
- * Pauses the countdown without resetting.
- */
-function stopTimer() {
+timerStopBtn.addEventListener('click', () => {
   if (!timerRunning) return;
   clearInterval(timerInterval);
   timerInterval = null;
   timerRunning  = false;
-  const display = document.getElementById('timer-display');
-  if (display) display.classList.remove('running');
-}
+  timerDisplayEl.classList.remove('running');
+});
 
-/**
- * Stops and resets the timer back to the current duration.
- */
-function resetTimer() {
-  stopTimer();
-  timerRemaining = timerDuration;
-  renderTimerDisplay();
-  const display = document.getElementById('timer-display');
-  if (display) display.classList.remove('finished', 'running');
-}
+timerResetBtn.addEventListener('click', () => {
+  clearInterval(timerInterval);
+  timerInterval  = null;
+  timerRunning   = false;
+  timerRemaining = timerDurationSecs;
+  timerDisplayEl.classList.remove('running', 'finished');
+  renderTimer();
+});
 
-/**
- * Called when the timer reaches 00:00.
- * Shows an alert / notification and flashes the display.
- */
-function timerFinished() {
-  stopTimer();
-  timerRemaining = 0;
-  renderTimerDisplay();
-
-  const display = document.getElementById('timer-display');
-  if (display) {
-    display.classList.add('finished');
-    setTimeout(() => display.classList.remove('finished'), 2500);
+applyTimerBtn.addEventListener('click', () => {
+  const mins = parseInt(pomodoroInput.value, 10);
+  if (isNaN(mins) || mins < 1 || mins > 120) {
+    pomodoroInput.value = lsGet(LS_POMODORO, 25);
+    return;
   }
+  // Stop any running timer first
+  clearInterval(timerInterval);
+  timerInterval    = null;
+  timerRunning     = false;
+  timerDurationSecs = mins * 60;
+  timerRemaining   = timerDurationSecs;
+  timerDisplayEl.classList.remove('running', 'finished');
+  lsSet(LS_POMODORO, mins);
+  renderTimer();
+});
 
-  // Try the Notifications API; fall back to alert
-  const msg = "⏰ Time's up! Take a well-earned break.";
-  if ('Notification' in window && Notification.permission === 'granted') {
-    new Notification('Focus Timer', { body: msg });
-  } else {
-    showToast(msg, 4000);
-  }
+// Initialise display
+renderTimer();
 
-  // Auto-reset after the animation
-  setTimeout(() => {
-    timerRemaining = timerDuration;
-    renderTimerDisplay();
-  }, 2600);
-}
+/* ----------------------------------------------------------
+   4. TO-DO LIST
+   ---------------------------------------------------------- */
 
-/**
- * Reads the custom duration from #timer-duration-input, validates it (1–120),
- * updates timerDuration, and resets the timer.
- */
-function setTimerDuration() {
-  const input = document.getElementById('timer-duration-input');
-  if (!input) return;
-  let minutes = parseInt(input.value, 10);
-  if (isNaN(minutes) || minutes < 1)   minutes = 1;
-  if (minutes > 120)                    minutes = 120;
-  input.value    = minutes;
-  timerDuration  = minutes * 60;
-  resetTimer();
-  showToast(`Timer set to ${minutes} minute${minutes === 1 ? '' : 's'}.`);
-}
+const taskInputEl  = document.getElementById('taskInput');
+const addTaskBtn   = document.getElementById('addTaskBtn');
+const taskListEl   = document.getElementById('taskList');
+const taskErrorEl  = document.getElementById('taskError');
+const sortBtns     = document.querySelectorAll('.sort-btn');
 
-/**
- * Wires up timer button event listeners and renders the initial display.
- */
-function initTimer() {
-  renderTimerDisplay();
-  document.getElementById('timer-start-btn').addEventListener('click', startTimer);
-  document.getElementById('timer-stop-btn').addEventListener('click',  stopTimer);
-  document.getElementById('timer-reset-btn').addEventListener('click', resetTimer);
-  document.getElementById('timer-set-btn').addEventListener('click',   setTimerDuration);
+let tasks       = lsGet(LS_TASKS, []);
+let currentSort = 'default';
 
-  // Allow pressing Enter in the duration input to set it
-  document.getElementById('timer-duration-input').addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') setTimerDuration();
-  });
-
-  // Request notification permission (non-blocking)
-  if ('Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission();
-  }
-}
-
-
-/* ── TO-DO LIST ──────────────────────────────────────────────────────────── */
-
-// In-memory tasks array; source of truth for rendering.
-// Shape: { id: number, text: string, done: boolean, createdAt: number }
-let tasks = [];
-
-/**
- * Reads the tasks array from LocalStorage into `tasks`.
- */
-function loadTasks() {
-  tasks = loadFromLS(TODO_KEY, []);
-}
-
-/**
- * Persists the current `tasks` array to LocalStorage.
- */
+/** Persist tasks array to LocalStorage. */
 function saveTasks() {
-  saveToLS(TODO_KEY, tasks);
+  lsSet(LS_TASKS, tasks);
+}
+
+/** Show or hide the task error message. */
+function showTaskError(msg) {
+  taskErrorEl.textContent = msg;
+  taskErrorEl.classList.remove('hidden');
+  setTimeout(() => taskErrorEl.classList.add('hidden'), 3000);
 }
 
 /**
- * Returns true if `text` (trimmed, lowercased) already exists in `tasks`,
- * optionally excluding the task with `excludeId`.
- * @param {string} text
- * @param {number|null} excludeId
- * @returns {boolean}
+ * Return the sorted tasks array without mutating the original.
+ * sort = 'default' | 'alpha' | 'completed'
  */
-function isDuplicate(text, excludeId = null) {
-  const normalised = text.trim().toLowerCase();
-  return tasks.some(
-    (t) => t.id !== excludeId && t.text.trim().toLowerCase() === normalised
-  );
+function getSortedTasks() {
+  const copy = [...tasks];
+  if (currentSort === 'alpha') {
+    copy.sort((a, b) => a.text.toLowerCase().localeCompare(b.text.toLowerCase()));
+  } else if (currentSort === 'completed') {
+    copy.sort((a, b) => {
+      if (a.done === b.done) return 0;
+      return a.done ? 1 : -1;   // incomplete first
+    });
+  }
+  // 'default' keeps insertion order (original array order)
+  return copy;
 }
 
-/**
- * Adds a new task.
- * Guards against empty input and case-insensitive duplicates.
- * @param {string} text
- */
-function addTask(text) {
-  const trimmed = text.trim();
-  if (!trimmed) {
-    showToast('Task cannot be empty.');
+/** Build and inject the task list DOM. */
+function renderTasks() {
+  taskListEl.innerHTML = '';
+  const sorted = getSortedTasks();
+
+  if (sorted.length === 0) {
+    const empty = document.createElement('li');
+    empty.style.cssText = 'text-align:center;color:var(--text-muted);font-size:0.875rem;padding:24px 0;';
+    empty.textContent = 'No tasks yet — add one above!';
+    taskListEl.appendChild(empty);
     return;
   }
-  if (isDuplicate(trimmed)) {
-    showToast('That task already exists!');
-    return;
-  }
-  const task = {
-    id:        Date.now(),
-    text:      trimmed,
-    done:      false,
-    createdAt: Date.now(),
-  };
-  tasks.push(task);
-  saveTasks();
-  renderTasks();
-  updateTaskCount();
-}
 
-/**
- * Removes the task with the given id.
- * @param {number} id
- */
-function deleteTask(id) {
-  tasks = tasks.filter((t) => t.id !== id);
-  saveTasks();
-  renderTasks();
-  updateTaskCount();
-}
-
-/**
- * Flips the `done` boolean of the task with the given id.
- * @param {number} id
- */
-function toggleTask(id) {
-  tasks = tasks.map((t) =>
-    t.id === id ? { ...t, done: !t.done } : t
-  );
-  saveTasks();
-  renderTasks();
-  updateTaskCount();
-}
-
-/**
- * Updates the text of a task after validating for emptiness and duplicates.
- * @param {number} id
- * @param {string} newText
- */
-function editTask(id, newText) {
-  const trimmed = newText.trim();
-  if (!trimmed) {
-    showToast('Task text cannot be empty.');
-    return false;
-  }
-  if (isDuplicate(trimmed, id)) {
-    showToast('Another task with that name already exists!');
-    return false;
-  }
-  tasks = tasks.map((t) =>
-    t.id === id ? { ...t, text: trimmed } : t
-  );
-  saveTasks();
-  renderTasks();
-  updateTaskCount();
-  return true;
-}
-
-/**
- * Pure function: returns a new sorted+filtered array based on `sort` and `filter` values.
- * @param {Array} taskArray
- * @param {string} sort    — 'newest'|'oldest'|'az'|'za'|'active'|'done'
- * @param {string} filter  — 'all'|'active'|'done'
- * @returns {Array}
- */
-function getSortedFilteredTasks(taskArray, sort, filter) {
-  // 1. Filter
-  let result = taskArray.filter((t) => {
-    if (filter === 'active') return !t.done;
-    if (filter === 'done')   return  t.done;
-    return true;
+  sorted.forEach((task) => {
+    const li = buildTaskItem(task);
+    taskListEl.appendChild(li);
   });
-
-  // 2. Sort
-  result = result.slice().sort((a, b) => {
-    switch (sort) {
-      case 'oldest': return a.createdAt - b.createdAt;
-      case 'az':     return a.text.toLowerCase().localeCompare(b.text.toLowerCase());
-      case 'za':     return b.text.toLowerCase().localeCompare(a.text.toLowerCase());
-      case 'active': return (a.done ? 1 : 0) - (b.done ? 1 : 0);
-      case 'done':   return (b.done ? 1 : 0) - (a.done ? 1 : 0);
-      default:       return b.createdAt - a.createdAt; // newest
-    }
-  });
-
-  return result;
 }
 
 /**
- * Builds a single <li> element for a task.
- * @param {{ id: number, text: string, done: boolean }} task
- * @returns {HTMLLIElement}
+ * Create the <li> element for a single task.
+ * @param {{ id: string, text: string, done: boolean }} task
  */
-function createTaskEl(task) {
+function buildTaskItem(task) {
   const li = document.createElement('li');
-  li.id        = `task-${task.id}`;
-  li.className = `task-item${task.done ? ' task-done' : ''}`;
+  li.className = `task-item${task.done ? ' completed' : ''}`;
+  li.dataset.id = task.id;
 
   // Checkbox
   const checkbox = document.createElement('input');
-  checkbox.type    = 'checkbox';
+  checkbox.type = 'checkbox';
+  checkbox.className = 'task-checkbox';
   checkbox.checked = task.done;
   checkbox.setAttribute('aria-label', `Mark "${task.text}" as ${task.done ? 'incomplete' : 'complete'}`);
   checkbox.addEventListener('change', () => toggleTask(task.id));
 
-  // Text span (double-click triggers inline edit)
-  const span = document.createElement('span');
-  span.className   = 'task-text';
-  span.textContent = task.text;
-  span.title       = 'Double-click to edit';
-  span.addEventListener('dblclick', () => startInlineEdit(task, li, span));
+  // Task text span
+  const textSpan = document.createElement('span');
+  textSpan.className = 'task-text';
+  textSpan.textContent = task.text;
+
+  // Action buttons wrapper
+  const actions = document.createElement('div');
+  actions.className = 'task-actions';
 
   // Edit button
   const editBtn = document.createElement('button');
-  editBtn.className   = 'btn-edit';
-  editBtn.textContent = '✏️';
+  editBtn.className = 'btn-edit';
+  editBtn.textContent = 'Edit';
   editBtn.setAttribute('aria-label', `Edit task: ${task.text}`);
-  editBtn.addEventListener('click', () => startInlineEdit(task, li, span));
+  editBtn.addEventListener('click', () => startEditTask(li, task));
 
   // Delete button
-  const deleteBtn = document.createElement('button');
-  deleteBtn.className   = 'btn-delete';
-  deleteBtn.textContent = '🗑️';
-  deleteBtn.setAttribute('aria-label', `Delete task: ${task.text}`);
-  deleteBtn.addEventListener('click', () => deleteTask(task.id));
+  const delBtn = document.createElement('button');
+  delBtn.className = 'btn-danger';
+  delBtn.textContent = '✕';
+  delBtn.setAttribute('aria-label', `Delete task: ${task.text}`);
+  delBtn.addEventListener('click', () => deleteTask(task.id));
+
+  actions.appendChild(editBtn);
+  actions.appendChild(delBtn);
 
   li.appendChild(checkbox);
-  li.appendChild(span);
-  li.appendChild(editBtn);
-  li.appendChild(deleteBtn);
+  li.appendChild(textSpan);
+  li.appendChild(actions);
 
   return li;
 }
 
 /**
- * Replaces the task's text span with an inline <input> for editing.
- * Commits on Enter or blur; cancels on Escape.
- * @param {{ id: number, text: string }} task
- * @param {HTMLLIElement} li
- * @param {HTMLSpanElement} span
+ * Replace the task text span with an inline edit input + Save button.
  */
-function startInlineEdit(task, li, span) {
-  // Prevent double-triggering if already editing
+function startEditTask(li, task) {
+  // Prevent double-edit
   if (li.querySelector('.task-edit-input')) return;
 
-  const input = document.createElement('input');
-  input.type      = 'text';
-  input.className = 'task-edit-input';
-  input.value     = task.text;
-  input.maxLength = 200;
-  input.setAttribute('aria-label', 'Edit task text');
+  const textSpan = li.querySelector('.task-text');
+  const actions  = li.querySelector('.task-actions');
 
-  li.replaceChild(input, span);
-  input.focus();
-  input.select();
+  // Hide static text
+  textSpan.classList.add('hidden');
 
-  const commit = () => {
-    const success = editTask(task.id, input.value);
-    if (!success) {
-      // Restore original span without saving
-      if (li.contains(input)) li.replaceChild(span, input);
+  // Build inline input
+  const editInput = document.createElement('input');
+  editInput.type      = 'text';
+  editInput.className = 'task-edit-input';
+  editInput.value     = task.text;
+  editInput.maxLength = 200;
+  editInput.setAttribute('aria-label', 'Edit task text');
+
+  // Save button
+  const saveBtn = document.createElement('button');
+  saveBtn.className   = 'btn btn-accent btn-sm';
+  saveBtn.textContent = 'Save';
+  saveBtn.setAttribute('aria-label', 'Save edited task');
+
+  const confirmEdit = () => {
+    const newText = editInput.value.trim();
+    if (newText.length === 0) return;
+
+    // Duplicate check (excluding the task being edited)
+    const isDupe = tasks.some(
+      (t) => t.id !== task.id && t.text.toLowerCase() === newText.toLowerCase()
+    );
+    if (isDupe) {
+      showTaskError('A task with that name already exists.');
+      return;
     }
+
+    // Update in array
+    const idx = tasks.findIndex((t) => t.id === task.id);
+    if (idx !== -1) {
+      tasks[idx].text = newText;
+      saveTasks();
+    }
+    renderTasks();
   };
 
-  const cancel = () => {
-    if (li.contains(input)) li.replaceChild(span, input);
-  };
-
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter')  { e.preventDefault(); commit(); }
-    if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+  saveBtn.addEventListener('click', confirmEdit);
+  editInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter')  confirmEdit();
+    if (e.key === 'Escape') renderTasks(); // cancel
   });
 
-  // Blur commits (but only if input is still in DOM — not already cancelled)
-  input.addEventListener('blur', () => {
-    if (li.contains(input)) commit();
-  });
+  // Insert before the actions div
+  li.insertBefore(editInput, actions);
+  li.insertBefore(saveBtn, actions);
+  editInput.focus();
+  editInput.select();
+
+  // Replace existing edit button with a Cancel button
+  const oldEditBtn = actions.querySelector('.btn-edit');
+  const cancelBtn  = document.createElement('button');
+  cancelBtn.className   = 'btn-ghost btn-sm';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.style.fontSize = '0.75rem';
+  cancelBtn.setAttribute('aria-label', 'Cancel edit');
+  cancelBtn.addEventListener('click', renderTasks);
+  if (oldEditBtn) actions.replaceChild(cancelBtn, oldEditBtn);
 }
 
-/**
- * Updates the "N tasks remaining" counter.
- */
-function updateTaskCount() {
-  const count = tasks.filter((t) => !t.done).length;
-  const el    = document.getElementById('todo-count');
-  if (el) el.textContent = `${count} task${count !== 1 ? 's' : ''} remaining`;
-}
-
-/**
- * Reads the current sort/filter selects, clears #todo-list,
- * and re-renders all matching tasks.
- */
-function renderTasks() {
-  const sort   = document.getElementById('todo-sort-select')?.value   || 'newest';
-  const filter = document.getElementById('todo-filter-select')?.value || 'all';
-  const list   = document.getElementById('todo-list');
-  if (!list) return;
-
-  list.innerHTML = '';
-
-  const visible = getSortedFilteredTasks(tasks, sort, filter);
-
-  if (visible.length === 0) {
-    const empty = document.createElement('li');
-    empty.className   = 'empty-state';
-    empty.textContent = filter === 'all'
-      ? 'No tasks yet. Add one above!'
-      : `No ${filter} tasks.`;
-    list.appendChild(empty);
-    return;
+/** Toggle a task's done state. */
+function toggleTask(id) {
+  const task = tasks.find((t) => t.id === id);
+  if (task) {
+    task.done = !task.done;
+    saveTasks();
+    renderTasks();
   }
-
-  visible.forEach((task) => list.appendChild(createTaskEl(task)));
 }
 
-/**
- * Wires up the to-do list controls and does the initial render.
- */
-function initTodo() {
-  loadTasks();
+/** Delete a task by id. */
+function deleteTask(id) {
+  tasks = tasks.filter((t) => t.id !== id);
+  saveTasks();
   renderTasks();
-  updateTaskCount();
+}
 
-  const addBtn    = document.getElementById('todo-add-btn');
-  const addInput  = document.getElementById('todo-input');
-  const sortSel   = document.getElementById('todo-sort-select');
-  const filterSel = document.getElementById('todo-filter-select');
+/** Add a new task from the input field. */
+function addTask() {
+  const text = taskInputEl.value.trim();
 
-  addBtn.addEventListener('click', () => {
-    addTask(addInput.value);
-    addInput.value = '';
-    addInput.focus();
+  if (text.length === 0) {
+    showTaskError('Please enter a task.');
+    return;
+  }
+
+  // Duplicate check (case-insensitive)
+  const isDupe = tasks.some((t) => t.text.toLowerCase() === text.toLowerCase());
+  if (isDupe) {
+    showTaskError('That task already exists.');
+    return;
+  }
+
+  tasks.push({ id: uid(), text, done: false });
+  saveTasks();
+  taskInputEl.value = '';
+  taskErrorEl.classList.add('hidden');
+  renderTasks();
+}
+
+addTaskBtn.addEventListener('click', addTask);
+taskInputEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') addTask();
+});
+
+// Sort buttons
+sortBtns.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    sortBtns.forEach((b) => {
+      b.classList.remove('active');
+      b.setAttribute('aria-pressed', 'false');
+    });
+    btn.classList.add('active');
+    btn.setAttribute('aria-pressed', 'true');
+    currentSort = btn.dataset.sort;
+    renderTasks();
+  });
+});
+
+// Initial render
+renderTasks();
+
+/* ----------------------------------------------------------
+   5. QUICK LINKS
+   ---------------------------------------------------------- */
+
+const linksGridEl    = document.getElementById('linksGrid');
+const openAddLinkBtn = document.getElementById('openAddLinkBtn');
+const linkModal      = document.getElementById('linkModal');
+const cancelLinkBtn  = document.getElementById('cancelLinkBtn');
+const saveLinkBtn    = document.getElementById('saveLinkBtn');
+const linkNameInput  = document.getElementById('linkNameInput');
+const linkUrlInput   = document.getElementById('linkUrlInput');
+const linkErrorEl    = document.getElementById('linkError');
+
+/** Default links shown when LocalStorage has no links. */
+const DEFAULT_LINKS = [
+  { id: 'default-google',  name: 'Google',  url: 'https://www.google.com' },
+  { id: 'default-github',  name: 'GitHub',  url: 'https://github.com' },
+  { id: 'default-youtube', name: 'YouTube', url: 'https://www.youtube.com' },
+];
+
+let links = lsGet(LS_LINKS, null);
+// If LocalStorage has never been set, seed with defaults
+if (links === null) {
+  links = DEFAULT_LINKS;
+  lsSet(LS_LINKS, links);
+}
+
+/** Persist links to LocalStorage. */
+function saveLinks() {
+  lsSet(LS_LINKS, links);
+}
+
+/** Extract domain from a URL string (used for favicon). */
+function getDomain(url) {
+  try {
+    return new URL(url).hostname;
+  } catch (_) {
+    return url;
+  }
+}
+
+/** Build and inject the links grid. */
+function renderLinks() {
+  linksGridEl.innerHTML = '';
+
+  if (links.length === 0) {
+    const empty = document.createElement('p');
+    empty.style.cssText = 'color:var(--text-muted);font-size:0.875rem;';
+    empty.textContent = 'No links yet — add your first one!';
+    linksGridEl.appendChild(empty);
+    return;
+  }
+
+  links.forEach((link) => {
+    const card = buildLinkCard(link);
+    linksGridEl.appendChild(card);
+  });
+}
+
+/**
+ * Build a single link card element.
+ * @param {{ id: string, name: string, url: string }} link
+ */
+function buildLinkCard(link) {
+  const card = document.createElement('div');
+  card.className = 'link-card';
+  card.setAttribute('role', 'button');
+  card.setAttribute('tabindex', '0');
+  card.setAttribute('aria-label', `Open ${link.name}`);
+  card.dataset.id = link.id;
+
+  // Favicon
+  const favicon = document.createElement('img');
+  favicon.className = 'link-favicon';
+  favicon.alt = '';
+  favicon.loading = 'lazy';
+  const domain = getDomain(link.url);
+  favicon.src = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+  // Fall back to a generic icon if the favicon fails
+  favicon.onerror = () => {
+    favicon.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="%236C63FF"/><text x="16" y="22" text-anchor="middle" font-size="18" font-family="sans-serif" fill="white">🔗</text></svg>';
+  };
+
+  // Name
+  const nameEl = document.createElement('span');
+  nameEl.className = 'link-name';
+  nameEl.textContent = link.name;
+  nameEl.title = link.name;
+
+  // URL display
+  const urlEl = document.createElement('span');
+  urlEl.className = 'link-url-text';
+  urlEl.textContent = domain;
+  urlEl.title = link.url;
+
+  // Delete button
+  const delBtn = document.createElement('button');
+  delBtn.className = 'link-delete-btn';
+  delBtn.textContent = '✕';
+  delBtn.setAttribute('aria-label', `Remove link: ${link.name}`);
+  delBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    deleteLink(link.id);
   });
 
-  addInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      addTask(addInput.value);
-      addInput.value = '';
+  card.appendChild(favicon);
+  card.appendChild(nameEl);
+  card.appendChild(urlEl);
+  card.appendChild(delBtn);
+
+  // Navigate on click / Enter
+  const navigate = () => window.open(link.url, '_blank', 'noopener,noreferrer');
+  card.addEventListener('click', navigate);
+  card.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      navigate();
     }
   });
 
-  sortSel.addEventListener('change',   renderTasks);
-  filterSel.addEventListener('change', renderTasks);
+  return card;
 }
 
-
-/* ── QUICK LINKS ─────────────────────────────────────────────────────────── */
-
-// In-memory links array; source of truth for rendering.
-// Shape: { id: number, name: string, url: string }
-let links = [];
-
-/**
- * Reads links from LocalStorage.
- * If no links have ever been saved (null), seeds with DEFAULT_LINKS.
- */
-function loadLinks() {
-  const stored = loadFromLS(LINKS_KEY, null);
-  if (stored === null) {
-    links = DEFAULT_LINKS.map((l) => ({ ...l }));
-    saveLinks();
-  } else {
-    links = stored;
-  }
-}
-
-/**
- * Persists the current `links` array to LocalStorage.
- */
-function saveLinks() {
-  saveToLS(LINKS_KEY, links);
-}
-
-/**
- * Validates that a string starts with http:// or https://.
- * @param {string} url
- * @returns {boolean}
- */
-function isValidUrl(url) {
-  return /^https?:\/\/.+/.test(url.trim());
-}
-
-/**
- * Adds a new quick link.
- * Validates that name and URL are non-empty and that the URL starts with http/https.
- * @param {string} name
- * @param {string} url
- */
-function addLink(name, url) {
-  const trimName = name.trim();
-  const trimUrl  = url.trim();
-
-  if (!trimName) {
-    showToast('Please enter a label for the link.');
-    return;
-  }
-  if (!trimUrl) {
-    showToast('Please enter a URL.');
-    return;
-  }
-  if (!isValidUrl(trimUrl)) {
-    showToast('URL must start with http:// or https://');
-    return;
-  }
-
-  const link = {
-    id:   Date.now(),
-    name: trimName,
-    url:  trimUrl,
-  };
-  links.push(link);
-  saveLinks();
-  renderLinks();
-}
-
-/**
- * Removes the link with the given id.
- * @param {number} id
- */
+/** Delete a link by id. */
 function deleteLink(id) {
   links = links.filter((l) => l.id !== id);
   saveLinks();
   renderLinks();
 }
 
-/**
- * Builds a single .link-item element for a quick link.
- * @param {{ id: number, name: string, url: string }} link
- * @returns {HTMLDivElement}
- */
-function createLinkEl(link) {
-  const item = document.createElement('div');
-  item.className = 'link-item';
-  item.setAttribute('role', 'listitem');
-
-  // The anchor opens the link in a new tab
-  const anchor = document.createElement('a');
-  anchor.href   = link.url;
-  anchor.target = '_blank';
-  anchor.rel    = 'noopener noreferrer';
-  anchor.textContent = link.name;
-  anchor.setAttribute('aria-label', `Open ${link.name} in new tab`);
-
-  // Delete button
-  const delBtn = document.createElement('button');
-  delBtn.className   = 'btn-delete-link';
-  delBtn.textContent = '✕';
-  delBtn.setAttribute('aria-label', `Remove ${link.name} from quick links`);
-  delBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    deleteLink(link.id);
-  });
-
-  item.appendChild(anchor);
-  item.appendChild(delBtn);
-  return item;
+/** Open the Add Link modal. */
+function openLinkModal() {
+  linkNameInput.value = '';
+  linkUrlInput.value  = '';
+  linkErrorEl.classList.add('hidden');
+  linkModal.classList.remove('hidden');
+  linkNameInput.focus();
 }
 
-/**
- * Clears #links-grid and re-renders all current links.
- */
-function renderLinks() {
-  const grid = document.getElementById('links-grid');
-  if (!grid) return;
+/** Close the Add Link modal. */
+function closeLinkModal() {
+  linkModal.classList.add('hidden');
+}
 
-  grid.innerHTML = '';
+/** Validate and save a new link. */
+function saveLink() {
+  const name = linkNameInput.value.trim();
+  const rawUrl = linkUrlInput.value.trim();
 
-  if (links.length === 0) {
-    const empty = document.createElement('p');
-    empty.className   = 'empty-state';
-    empty.textContent = 'No links yet. Add one above!';
-    grid.appendChild(empty);
+  if (name.length === 0) {
+    linkErrorEl.textContent = 'Please enter a name.';
+    linkErrorEl.classList.remove('hidden');
     return;
   }
 
-  links.forEach((link) => grid.appendChild(createLinkEl(link)));
-}
+  if (rawUrl.length === 0) {
+    linkErrorEl.textContent = 'Please enter a URL.';
+    linkErrorEl.classList.remove('hidden');
+    return;
+  }
 
-/**
- * Wires up the quick links controls and does the initial render.
- */
-function initLinks() {
-  loadLinks();
+  // Prepend https:// if the user forgot the scheme
+  let url = rawUrl;
+  if (!/^https?:\/\//i.test(url)) {
+    url = 'https://' + url;
+  }
+
+  // Basic URL validation
+  try {
+    new URL(url);
+  } catch (_) {
+    linkErrorEl.textContent = 'Please enter a valid URL.';
+    linkErrorEl.classList.remove('hidden');
+    return;
+  }
+
+  links.push({ id: uid(), name, url });
+  saveLinks();
   renderLinks();
-
-  const addBtn   = document.getElementById('link-add-btn');
-  const nameInput = document.getElementById('link-name-input');
-  const urlInput  = document.getElementById('link-url-input');
-
-  const doAdd = () => {
-    addLink(nameInput.value, urlInput.value);
-    nameInput.value = '';
-    urlInput.value  = '';
-    nameInput.focus();
-  };
-
-  addBtn.addEventListener('click', doAdd);
-
-  // Allow pressing Enter in either input to trigger add
-  urlInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') doAdd();
-  });
-  nameInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') urlInput.focus();
-  });
+  closeLinkModal();
 }
 
+openAddLinkBtn.addEventListener('click', openLinkModal);
+cancelLinkBtn.addEventListener('click', closeLinkModal);
+saveLinkBtn.addEventListener('click', saveLink);
 
-/* ── INIT — DOMContentLoaded ─────────────────────────────────────────────── */
-
-document.addEventListener('DOMContentLoaded', () => {
-  // 1. Apply theme first (prevents flash of wrong colour scheme)
-  initTheme();
-
-  // 2. Start the greeting clock
-  initGreeting();
-
-  // 3. Wire the focus timer
-  initTimer();
-
-  // 4. Load and wire the to-do list
-  initTodo();
-
-  // 5. Load and wire the quick links
-  initLinks();
-
-  // 6. Theme toggle button
-  document.getElementById('theme-toggle-btn').addEventListener('click', toggleTheme);
-
-  // 7. Save-name button + Enter key on the name input
-  document.getElementById('save-name-btn').addEventListener('click', saveName);
-  document.getElementById('username-input').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') saveName();
-  });
+// Close modal on overlay click (outside the modal box)
+linkModal.addEventListener('click', (e) => {
+  if (e.target === linkModal) closeLinkModal();
 });
+
+// Close modal on Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !linkModal.classList.contains('hidden')) {
+    closeLinkModal();
+  }
+});
+
+// Allow Enter key in the URL input to submit
+linkUrlInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') saveLink();
+});
+linkNameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') linkUrlInput.focus();
+});
+
+// Initial render
+renderLinks();

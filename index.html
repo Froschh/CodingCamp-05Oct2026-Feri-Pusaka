@@ -4,154 +4,147 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>To-Do List Dashboard</title>
-  <!-- Single CSS file -->
+
+  <!-- Google Font: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
   <link rel="stylesheet" href="css/style.css" />
 </head>
-<body class="light-mode">
+<body class="light">
 
-  <!-- ── HEADER: Greeting, Clock, Name Input, Theme Toggle ─────────────────── -->
-  <header id="header">
-    <div id="greeting-section">
-      <!-- Greeting text: e.g. "Good Morning, Feri!" — updated by JS every second -->
-      <h1 id="greeting-text">Good Morning, Friend!</h1>
-      <!-- Live clock — updated by updateClock() every second -->
-      <p id="current-time">00:00:00</p>
-      <!-- Current date — e.g. "Friday, 5 October 2026" -->
-      <p id="current-date">Loading date…</p>
-    </div>
-
-    <div id="header-controls">
-      <!-- Name input: pre-filled from LocalStorage by initGreeting() -->
-      <div id="name-control">
-        <label for="username-input" class="sr-only">Your name</label>
-        <input
-          id="username-input"
-          type="text"
-          placeholder="Enter your name…"
-          maxlength="40"
-          autocomplete="off"
-          aria-label="Your name"
-        />
-        <button id="save-name-btn" aria-label="Save name">Save</button>
-      </div>
-      <!-- Theme toggle button — icon swapped by applyTheme() -->
-      <button id="theme-toggle-btn" aria-label="Toggle dark/light mode" title="Toggle dark/light mode">
-        🌙
+  <!-- ===================== HEADER / THEME TOGGLE ===================== -->
+  <header class="app-header">
+    <div class="header-inner">
+      <span class="app-title">📋 Dashboard</span>
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark/light mode" title="Toggle theme">
+        <span id="themeIcon">🌙</span>
       </button>
     </div>
   </header>
 
-  <!-- ── MAIN DASHBOARD GRID ────────────────────────────────────────────────── -->
-  <main id="dashboard">
+  <!-- ===================== MAIN CONTENT ===================== -->
+  <main class="app-main">
 
-    <!-- ── SECTION 1: Focus Timer ─────────────────────────────────────────── -->
-    <section id="timer-section" aria-label="Focus Timer">
-      <h2>⏱ Focus Timer</h2>
-
-      <!-- MM:SS display — written by renderTimerDisplay() -->
-      <div id="timer-display" role="timer" aria-live="off">25:00</div>
-
-      <!-- Start / Stop / Reset controls -->
-      <div id="timer-controls">
-        <button id="timer-start-btn" aria-label="Start timer">Start</button>
-        <button id="timer-stop-btn"  aria-label="Stop timer">Stop</button>
-        <button id="timer-reset-btn" aria-label="Reset timer">Reset</button>
+    <!-- ---- GREETING SECTION ---- -->
+    <section class="card greeting-card" aria-label="Greeting">
+      <div class="greeting-time-block">
+        <div class="clock" id="clock" aria-live="polite">00:00:00</div>
+        <div class="date" id="dateDisplay"></div>
       </div>
-
-      <!-- Custom duration setting -->
-      <div id="timer-settings">
-        <label for="timer-duration-input">Duration (min):</label>
-        <input
-          id="timer-duration-input"
-          type="number"
-          min="1"
-          max="120"
-          value="25"
-          aria-label="Timer duration in minutes"
-        />
-        <button id="timer-set-btn" aria-label="Set timer duration">Set</button>
+      <div class="greeting-text-block">
+        <h1 class="greeting-message" id="greetingMessage">Good Morning,</h1>
+        <div class="greeting-name-wrapper">
+          <!-- Name display -->
+          <span class="greeting-name" id="greetingName" title="Click to edit your name" role="button" tabindex="0" aria-label="Your name — click to edit"></span>
+          <!-- Inline name edit input (hidden by default) -->
+          <div class="name-edit-wrapper hidden" id="nameEditWrapper">
+            <input type="text" class="name-input" id="nameInput" maxlength="40" placeholder="Enter your name" aria-label="Edit your name" />
+            <button class="btn btn-accent btn-sm" id="saveNameBtn">Save</button>
+          </div>
+        </div>
       </div>
     </section>
 
-    <!-- ── SECTION 2: To-Do List ───────────────────────────────────────────── -->
-    <section id="todo-section" aria-label="To-Do List">
-      <h2>✅ To-Do List</h2>
+    <!-- ---- DASHBOARD GRID ---- -->
+    <div class="dashboard-grid">
 
-      <!-- Add task input row -->
-      <div id="todo-controls">
-        <label for="todo-input" class="sr-only">New task</label>
-        <input
-          id="todo-input"
-          type="text"
-          placeholder="Add a new task…"
-          maxlength="200"
-          autocomplete="off"
-          aria-label="New task text"
-        />
-        <button id="todo-add-btn" aria-label="Add task">Add</button>
+      <!-- ---- FOCUS TIMER ---- -->
+      <section class="card timer-card" aria-label="Focus Timer">
+        <h2 class="card-title">⏱ Focus Timer</h2>
+
+        <div class="timer-display" id="timerDisplay" aria-live="polite" aria-atomic="true">25:00</div>
+
+        <div class="timer-controls">
+          <button class="btn btn-accent" id="timerStartBtn" aria-label="Start timer">Start</button>
+          <button class="btn btn-secondary" id="timerStopBtn" aria-label="Pause timer">Pause</button>
+          <button class="btn btn-ghost" id="timerResetBtn" aria-label="Reset timer">Reset</button>
+        </div>
+
+        <div class="timer-settings">
+          <label for="pomodoroMinutes" class="timer-label">Set minutes:</label>
+          <input
+            type="number"
+            id="pomodoroMinutes"
+            class="timer-input"
+            min="1"
+            max="120"
+            value="25"
+            aria-label="Pomodoro duration in minutes"
+          />
+          <button class="btn btn-ghost btn-sm" id="applyTimerBtn">Apply</button>
+        </div>
+      </section>
+
+      <!-- ---- TO-DO LIST ---- -->
+      <section class="card todo-card" aria-label="To-Do List">
+        <h2 class="card-title">✅ To-Do List</h2>
+
+        <!-- Add task -->
+        <div class="todo-add-row">
+          <input
+            type="text"
+            id="taskInput"
+            class="text-input"
+            placeholder="Add a new task…"
+            maxlength="200"
+            aria-label="New task text"
+          />
+          <button class="btn btn-accent" id="addTaskBtn" aria-label="Add task">Add</button>
+        </div>
+        <p class="error-msg hidden" id="taskError" role="alert" aria-live="assertive"></p>
+
+        <!-- Sort controls -->
+        <div class="todo-sort-row">
+          <span class="sort-label">Sort:</span>
+          <button class="sort-btn active" data-sort="default" aria-pressed="true">Default</button>
+          <button class="sort-btn" data-sort="alpha" aria-pressed="false">A–Z</button>
+          <button class="sort-btn" data-sort="completed" aria-pressed="false">Completed Last</button>
+        </div>
+
+        <!-- Task list -->
+        <ul class="task-list" id="taskList" aria-label="Tasks" aria-live="polite"></ul>
+      </section>
+
+    </div><!-- /dashboard-grid -->
+
+    <!-- ---- QUICK LINKS ---- -->
+    <section class="card links-card" aria-label="Quick Links">
+      <div class="links-header">
+        <h2 class="card-title">🔗 Quick Links</h2>
+        <button class="btn btn-accent btn-sm" id="openAddLinkBtn" aria-label="Add a new quick link">+ Add Link</button>
       </div>
-
-      <!-- Sort + filter selectors -->
-      <div id="todo-filters">
-        <label for="todo-sort-select" class="sr-only">Sort tasks</label>
-        <select id="todo-sort-select" aria-label="Sort tasks">
-          <option value="newest">Newest First</option>
-          <option value="oldest">Oldest First</option>
-          <option value="az">A → Z</option>
-          <option value="za">Z → A</option>
-          <option value="active">Active First</option>
-          <option value="done">Done First</option>
-        </select>
-
-        <label for="todo-filter-select" class="sr-only">Filter tasks</label>
-        <select id="todo-filter-select" aria-label="Filter tasks">
-          <option value="all">All Tasks</option>
-          <option value="active">Active</option>
-          <option value="done">Done</option>
-        </select>
-      </div>
-
-      <!-- Task count — updated by updateTaskCount() -->
-      <p id="todo-count" aria-live="polite">0 tasks remaining</p>
-
-      <!-- Task list — <li> elements injected by renderTasks() -->
-      <ul id="todo-list" aria-label="Task list"></ul>
-    </section>
-
-    <!-- ── SECTION 3: Quick Links ──────────────────────────────────────────── -->
-    <section id="links-section" aria-label="Quick Links">
-      <h2>🔗 Quick Links</h2>
-
-      <!-- Add link form row -->
-      <div id="links-controls">
-        <label for="link-name-input" class="sr-only">Link label</label>
-        <input
-          id="link-name-input"
-          type="text"
-          placeholder="Label (e.g. GitHub)"
-          maxlength="50"
-          autocomplete="off"
-          aria-label="Link label"
-        />
-        <label for="link-url-input" class="sr-only">Link URL</label>
-        <input
-          id="link-url-input"
-          type="url"
-          placeholder="https://…"
-          maxlength="500"
-          autocomplete="off"
-          aria-label="Link URL"
-        />
-        <button id="link-add-btn" aria-label="Add quick link">Add</button>
-      </div>
-
-      <!-- Link buttons injected by renderLinks() -->
-      <div id="links-grid" role="list" aria-label="Quick links grid"></div>
+      <div class="links-grid" id="linksGrid" aria-live="polite"></div>
     </section>
 
   </main>
 
-  <!-- Single JS file — loaded with defer so DOM is ready -->
-  <script src="js/app.js" defer></script>
+  <!-- ===================== ADD-LINK MODAL ===================== -->
+  <div class="modal-overlay hidden" id="linkModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal">
+      <h3 class="modal-title" id="modalTitle">Add Quick Link</h3>
+      <div class="modal-body">
+        <label for="linkNameInput" class="form-label">Name</label>
+        <input type="text" id="linkNameInput" class="text-input" placeholder="e.g. GitHub" maxlength="50" />
+
+        <label for="linkUrlInput" class="form-label">URL</label>
+        <input type="url" id="linkUrlInput" class="text-input" placeholder="https://example.com" />
+
+        <p class="error-msg hidden" id="linkError" role="alert" aria-live="assertive"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="cancelLinkBtn">Cancel</button>
+        <button class="btn btn-accent" id="saveLinkBtn">Save Link</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== FOOTER ===================== -->
+  <footer class="app-footer">
+    <p>To-Do List Dashboard &mdash; all data stored locally in your browser.</p>
+  </footer>
+
+  <script src="js/app.js"></script>
 </body>
 </html>
