@@ -1,16 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8" >
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" >
   <title>To-Do List Dashboard</title>
 
   <!-- Google Font: Inter -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" >
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin >
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" >
 
-  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/style.css" >
 </head>
 <body class="light">
 
@@ -18,7 +18,7 @@
   <header class="app-header">
     <div class="header-inner">
       <span class="app-title">📋 Dashboard</span>
-      <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark/light mode" title="Toggle theme">
+      <button type="button" class="theme-toggle" id="themeToggle" aria-label="Toggle dark/light mode" title="Toggle theme">
         <span id="themeIcon">🌙</span>
       </button>
     </div>
@@ -37,11 +37,11 @@
         <h1 class="greeting-message" id="greetingMessage">Good Morning,</h1>
         <div class="greeting-name-wrapper">
           <!-- Name display -->
-          <span class="greeting-name" id="greetingName" title="Click to edit your name" role="button" tabindex="0" aria-label="Your name — click to edit"></span>
+          <button type="button" class="greeting-name" id="greetingName" title="Click to edit your name" aria-label="Your name — click to edit"></button>
           <!-- Inline name edit input (hidden by default) -->
           <div class="name-edit-wrapper hidden" id="nameEditWrapper">
-            <input type="text" class="name-input" id="nameInput" maxlength="40" placeholder="Enter your name" aria-label="Edit your name" />
-            <button class="btn btn-accent btn-sm" id="saveNameBtn">Save</button>
+            <input type="text" class="name-input" id="nameInput" maxlength="40" placeholder="Enter your name" aria-label="Edit your name" >
+            <button type="button" class="btn btn-accent btn-sm" id="saveNameBtn">Save</button>
           </div>
         </div>
       </div>
@@ -57,9 +57,9 @@
         <div class="timer-display" id="timerDisplay" aria-live="polite" aria-atomic="true">25:00</div>
 
         <div class="timer-controls">
-          <button class="btn btn-accent" id="timerStartBtn" aria-label="Start timer">Start</button>
-          <button class="btn btn-secondary" id="timerStopBtn" aria-label="Pause timer">Pause</button>
-          <button class="btn btn-ghost" id="timerResetBtn" aria-label="Reset timer">Reset</button>
+          <button type="button" class="btn btn-accent" id="timerStartBtn" aria-label="Start timer">Start</button>
+          <button type="button" class="btn btn-secondary" id="timerStopBtn" aria-label="Pause timer">Pause</button>
+          <button type="button" class="btn btn-ghost" id="timerResetBtn" aria-label="Reset timer">Reset</button>
         </div>
 
         <div class="timer-settings">
@@ -72,8 +72,8 @@
             max="120"
             value="25"
             aria-label="Pomodoro duration in minutes"
-          />
-          <button class="btn btn-ghost btn-sm" id="applyTimerBtn">Apply</button>
+          >
+          <button type="button" class="btn btn-ghost btn-sm" id="applyTimerBtn">Apply</button>
         </div>
       </section>
 
@@ -90,17 +90,17 @@
             placeholder="Add a new task…"
             maxlength="200"
             aria-label="New task text"
-          />
-          <button class="btn btn-accent" id="addTaskBtn" aria-label="Add task">Add</button>
+          >
+          <button type="button" class="btn btn-accent" id="addTaskBtn" aria-label="Add task">Add</button>
         </div>
         <p class="error-msg hidden" id="taskError" role="alert" aria-live="assertive"></p>
 
         <!-- Sort controls -->
         <div class="todo-sort-row">
           <span class="sort-label">Sort:</span>
-          <button class="sort-btn active" data-sort="default" aria-pressed="true">Default</button>
-          <button class="sort-btn" data-sort="alpha" aria-pressed="false">A–Z</button>
-          <button class="sort-btn" data-sort="completed" aria-pressed="false">Completed Last</button>
+          <button type="button" class="sort-btn active" data-sort="default" aria-pressed="true">Default</button>
+          <button type="button" class="sort-btn" data-sort="alpha" aria-pressed="false">A–Z</button>
+          <button type="button" class="sort-btn" data-sort="completed" aria-pressed="false">Completed Last</button>
         </div>
 
         <!-- Task list -->
@@ -113,7 +113,7 @@
     <section class="card links-card" aria-label="Quick Links">
       <div class="links-header">
         <h2 class="card-title">🔗 Quick Links</h2>
-        <button class="btn btn-accent btn-sm" id="openAddLinkBtn" aria-label="Add a new quick link">+ Add Link</button>
+        <button type="button" class="btn btn-accent btn-sm" id="openAddLinkBtn" aria-label="Add a new quick link">+ Add Link</button>
       </div>
       <div class="links-grid" id="linksGrid" aria-live="polite"></div>
     </section>
@@ -126,16 +126,16 @@
       <h3 class="modal-title" id="modalTitle">Add Quick Link</h3>
       <div class="modal-body">
         <label for="linkNameInput" class="form-label">Name</label>
-        <input type="text" id="linkNameInput" class="text-input" placeholder="e.g. GitHub" maxlength="50" />
+        <input type="text" id="linkNameInput" class="text-input" placeholder="e.g. GitHub" maxlength="50" >
 
         <label for="linkUrlInput" class="form-label">URL</label>
-        <input type="url" id="linkUrlInput" class="text-input" placeholder="https://example.com" />
+        <input type="url" id="linkUrlInput" class="text-input" placeholder="https://example.com" >
 
         <p class="error-msg hidden" id="linkError" role="alert" aria-live="assertive"></p>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-ghost" id="cancelLinkBtn">Cancel</button>
-        <button class="btn btn-accent" id="saveLinkBtn">Save Link</button>
+        <button type="button" class="btn btn-ghost" id="cancelLinkBtn">Cancel</button>
+        <button type="button" class="btn btn-accent" id="saveLinkBtn">Save Link</button>
       </div>
     </div>
   </div>
